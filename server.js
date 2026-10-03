@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS friends (
 
 app.use(express.json({limit:'32kb'}));
 app.use(session({secret:process.env.SESSION_SECRET||'study-quest-change-this-secret',resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'lax',secure:false,maxAge:1000*60*60*24*7}}));
-app.use(express.static(path.join(__dirname,'../public')));
+app.use(express.static(__dirname));
 
 const today=()=>new Date().toISOString().slice(0,10);
 const levelForXp=xp=>Math.max(1,Math.floor(Math.sqrt(xp/100))+1);
@@ -121,5 +121,5 @@ app.get('/api/users/:id',requireAuth,(req,res)=>{const u=userRow(Number(req.para
 app.get('/api/friends',requireAuth,(req,res)=>{const id=req.session.userId;const friends=db.prepare('SELECT u.id,u.username,u.level,u.xp,u.current_streak,u.total_minutes FROM users u JOIN friends f ON f.friend_id=u.id WHERE f.user_id=?').all(id);const incoming=db.prepare('SELECT r.id,u.username,u.level FROM friend_requests r JOIN users u ON u.id=r.sender_id WHERE r.receiver_id=? AND r.status=\'pending\'').all(id);const outgoing=db.prepare('SELECT r.id,u.username,u.level FROM friend_requests r JOIN users u ON u.id=r.receiver_id WHERE r.sender_id=? AND r.status=\'pending\'').all(id);res.json({friends,incoming,outgoing});});
 app.post('/api/friends/request',requireAuth,(req,res)=>{const target=Number(req.body.userId);if(target===req.session.userId)return res.status(400).json({error:'เพิ่มตัวเองไม่ได้'});if(!userRow(target))return res.status(404).json({error:'ไม่พบผู้ใช้'});try{db.prepare('INSERT INTO friend_requests(sender_id,receiver_id,created_at) VALUES(?,?,?)').run(req.session.userId,target,Date.now());res.json({ok:true});}catch(e){res.status(409).json({error:'คำขอนี้มีอยู่แล้ว'});}});
 app.post('/api/friends/respond',requireAuth,(req,res)=>{const r=db.prepare('SELECT * FROM friend_requests WHERE id=? AND receiver_id=?').get(Number(req.body.requestId),req.session.userId);if(!r)return res.status(404).json({error:'ไม่พบคำขอ'});if(req.body.accept){db.prepare("UPDATE friend_requests SET status='accepted' WHERE id=?").run(r.id);db.prepare('INSERT OR IGNORE INTO friends(user_id,friend_id,created_at) VALUES(?,?,?)').run(r.sender_id,r.receiver_id,Date.now());db.prepare('INSERT OR IGNORE INTO friends(user_id,friend_id,created_at) VALUES(?,?,?)').run(r.receiver_id,r.sender_id,Date.now());}else db.prepare("UPDATE friend_requests SET status='rejected' WHERE id=?").run(r.id);res.json({ok:true});});
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'../public/index.html')));
+app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'index.html')));
 app.listen(process.env.PORT||3000,()=>console.log('Study Quest running on http://localhost:'+(process.env.PORT||3000)));
